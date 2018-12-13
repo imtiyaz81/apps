@@ -1,0 +1,123 @@
+node('ZM_SFDC_W6489'){
+
+	def jirakey = "$params.jirakey"
+	def user_id = "$params.user_id"
+		
+	stage('SVN Checkout'){
+		checkout([$class: 'SubversionSCM', 
+		additionalCredentials: [], 
+		excludedCommitMessages: '', 
+		excludedRegions: '', 
+		excludedRevprop: '', 
+		excludedUsers: '', 
+		filterChangelog: false, 
+		ignoreDirPropChanges: false, 
+		includedRegions: '', 
+		locations: [[credentialsId: '6623f93c-b110-4aef-8a39-71e2a4ae1f0e', 
+		depthOption: 'infinity', 
+		ignoreExternalsOption: true, local: 'create_feature_branch', 
+		remote: 'https://svn.kpn.org/l3_space/p_cicd/ZM_VD_Installbase/platform/create_feature_branch']], 
+		workspaceUpdater: [$class: 'UpdateUpdater']])
+			
+		checkout([$class: 'SubversionSCM', 
+		additionalCredentials: [], 
+		excludedCommitMessages: '', 
+		excludedRegions: '', 
+		excludedRevprop: '', 
+		excludedUsers: '', 
+		filterChangelog: false, 
+		ignoreDirPropChanges: false, 
+		includedRegions: '', 
+		locations: [[credentialsId: '6623f93c-b110-4aef-8a39-71e2a4ae1f0e', 
+		depthOption: 'infinity', 
+		ignoreExternalsOption: true, local: 'general_config', 
+		remote: 'https://svn.kpn.org/l3_space/p_cicd/ZM_VD_Installbase/platform/general_config']], 
+		workspaceUpdater: [$class: 'UpdateUpdater']])
+			
+		checkout([$class: 'SubversionSCM', 
+		additionalCredentials: [], 
+		excludedCommitMessages: '', 
+		excludedRegions: '', 
+		excludedRevprop: '', 
+		excludedUsers: '', 
+		filterChangelog: false, 
+		ignoreDirPropChanges: false, 
+		includedRegions: '', 
+		locations: [[credentialsId: '6623f93c-b110-4aef-8a39-71e2a4ae1f0e', 
+		depthOption: 'infinity', 
+		ignoreExternalsOption: true, local: 'jira_relbuild_verifier', 
+		remote: 'https://svn.kpn.org/l3_space/p_cicd/ZM_VD_Installbase/platform/jira_relbuild_verifier']], 
+		workspaceUpdater: [$class: 'UpdateUpdater']])
+	}
+
+	jiraSubtask('STARTED')
+	
+	try {
+		stage('Rebuild Verify'){
+			bat "perl jira_relbuild_verifier\bin\jira_relbuild_verifier.pl --basedir '%WORKSPACE%\jira_relbuild_verifier' --jirakey '%jirakey%' --customfield 'customfield_14801' --customvalue 'develop'"
+		}
+		stage('Create Feature Branch'){
+			bat "perl create_feature_branch\\bin\\create_feature_branch.pl --basedir '%WORKSPACE%\create_feature_branch' --jirakey '%jirakey%' --application 'VIB'"
+			
+		}
+	} catch (e) {
+		// If there was an exception thrown, the build failed
+		currentBuild.result = "FAILED"
+		throw e
+	} finally {
+		// Success or failure, always send notifications
+		jiraSubtask(currentBuild.result)
+	}
+}
+
+def jiraSubtask(String buildStatus = 'STARTED') {
+  // build status of null means successful
+  buildStatus =  buildStatus ?: 'SUCCESSFUL'
+
+	if (buildStatus == 'FAILURE') {
+		def color = 'RED'
+		def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+		def summary = "${subject} (${env.BUILD_URL})"
+		def details = """<p>The Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' status: <b><font size="3" color=${color}>${buildStatus}</font></b>.</p>
+		<p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>"""
+		def recipient = "imtiyaz.hossain@kpn.com,sudhakar.karenavar@kpn.com,ramesh.darekar@kpn.com"
+    
+		emailext (
+			mimeType: 'text/html',
+			subject: subject,
+			body: details,
+			to: recipient
+		)    
+	}
+	}else if (buildStatus == 'SUCCESSFUL') {
+		// Default values
+		def color = 'GREEN'
+		def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+		def summary = "${subject} (${env.BUILD_URL})"
+		def details = """<p>The Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' status: <b><font size="3" color=${color}>${buildStatus}</font></b>.</p>
+			<p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>"""
+		def recipient = "imtiyaz.hossain@kpn.com,sudhakar.karenavar@kpn.com,ramesh.darekar@kpn.com"
+    
+		emailext (
+			mimeType: 'text/html',
+			subject: subject,
+			body: details,
+			to: recipient
+		) 
+	}else if (buildStatus == 'STARTED') {
+		// Default values
+		def color = 'BLACK'
+		def subject = "${buildStatus}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'"
+		def summary = "${subject} (${env.BUILD_URL})"
+		def details = """<p>The Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' status: <b><font size="3" color=${color}>${buildStatus}</font></b>.</p>
+		<p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>"""
+		def recipient = "imtiyaz.hossain@kpn.com,sudhakar.karenavar@kpn.com,ramesh.darekar@kpn.com"
+		
+		emailext (
+			mimeType: 'text/html',
+			subject: subject,
+			body: details,
+			to: recipient
+		) 
+	}
+}
